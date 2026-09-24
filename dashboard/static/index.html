@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AP Fraud Screening Crew</title>
+<style>
+  :root {
+    --bg: #0b0f17;
+    --panel: #131826;
+    --panel-2: #1a2133;
+    --panel-3: #212a40;
+    --text: #e8ecf5;
+    --text-dim: #93a0bd;
+    --border: #263049;
+    --blue: #5b9dff;
+    --green: #3ecf8e;
+    --amber: #f5b849;
+    --red: #f0576b;
+    --purple: #c084fc;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  #app { display: flex; flex-direction: column; height: 100vh; min-height: 600px; }
+
+  header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 18px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, #131826, #0d111c); }
+  header h1 { font-size: 15px; margin: 0; font-weight: 650; }
+  header .sub { color: var(--text-dim); font-size: 11.5px; }
+  .spacer { flex: 1; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text-dim); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+  .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.down { background: var(--red); }
+
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); gap: 14px; padding: 14px 18px; overflow: hidden; }
+  #left, #right { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0; }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden; }
+  .panel h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim); margin: 0; padding: 9px 13px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .panel .body { padding: 10px 13px; overflow-y: auto; }
+  .count { background: var(--panel-2); border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+
+  /* --- stepper --- */
+  #stepper .body { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 13px; }
+  .step { display: flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: 12px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim); }
+  .step.active { border-color: var(--blue); color: var(--text); background: rgba(91,157,255,0.12); }
+  .step.done { border-color: var(--green); color: var(--green); }
+  .step.rejected { border-color: var(--red); color: var(--red); }
+
+  /* --- agents (multi-agent workflow) --- */
+  #agents .body { display: flex; flex-direction: column; gap: 7px; padding: 10px 13px; }
+  .agent-card { border: 1px solid var(--border); background: var(--panel-2); border-radius: 8px; padding: 7px 10px; transition: border-color .2s, background .2s; }
+  .agent-card.working { border-color: var(--blue); background: rgba(91,157,255,0.10); }
+  .agent-card.done { border-color: var(--green); }
+  .agent-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .agent-name { font-size: 12.5px; font-weight: 650; }
+  .agent-pill { font-size: 10px; text-transform: uppercase; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--panel-3); color: var(--text-dim); }
+  .agent-pill.working { background: rgba(91,157,255,0.18); color: var(--blue); }
+  .agent-pill.done { background: rgba(62,207,142,0.15); color: var(--green); }
+  .agent-action { font-size: 11px; color: var(--text-dim); margin-top: 3px; min-height: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agent-tools { font-size: 10px; color: var(--text-dim); opacity: 0.7; margin-top: 2px; }
+
+  /* --- invoices table --- */
+  #txns .body { max-height: 320px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--text-dim); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); }
+  td { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: nowrap; }
+  .badge { padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; }
+  .badge.approve { background: rgba(62,207,142,0.15); color: var(--green); }
+  .badge.hold-for-review { background: rgba(240,87,107,0.15); color: var(--red); }
+  .badge.pending { background: var(--panel-2); color: var(--text-dim); }
+  .repeat-flag { color: var(--red); font-weight: 700; }
+  .bank-age.fresh { color: var(--amber); font-weight: 700; }
+
+  /* --- approval panel --- */
+  #approval { display: none; border-color: var(--amber); }
+  #approval.show { display: flex; }
+  #approval h2 { color: var(--amber); }
+  .draft-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 4px; font-size: 12px; border-bottom: 1px dashed rgba(255,255,255,0.06); }
+  .draft-row .just { color: var(--text-dim); }
+  #approval-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); padding: 7px 16px; background: var(--panel-2); color: var(--text); }
+  button.primary { background: var(--green); border-color: var(--green); color: #06210f; font-weight: 700; }
+  button.danger { background: var(--red); border-color: var(--red); color: #2a0509; font-weight: 700; }
+  textarea, input[type=text] { font: inherit; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 8px 10px; }
+  #approval-feedback { flex: 1; min-width: 160px; }
+
+  /* --- report --- */
+  #report .body { font-size: 12.5px; line-height: 1.5; }
+  .md-h { margin: 10px 0 4px; color: var(--text); font-size: 13px; }
+  .md-h:first-child { margin-top: 0; }
+  .md-p { margin: 4px 0; }
+  .md-ul { margin: 4px 0 8px; padding-left: 20px; }
+  .md-ul li { margin: 2px 0; }
+
+  /* --- activity/log --- */
+  #activity .body { max-height: 280px; }
+  .log-row { border-left: 3px solid var(--text-dim); background: var(--panel-2); border-radius: 6px; padding: 6px 9px; margin-bottom: 6px; font-size: 11.5px; animation: slidein .25s ease-out; }
+  .log-row.task { border-left-color: var(--blue); }
+  .log-row.tool { border-left-color: #7dd3fc; }
+  .log-row.guardrail.pass { border-left-color: var(--green); }
+  .log-row.guardrail.fail { border-left-color: var(--red); }
+  .log-row.approval { border-left-color: var(--amber); }
+  .log-row.batch { border-left-color: var(--purple); font-weight: 600; }
+  .log-kind { font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); }
+  @keyframes slidein { from { opacity:0; transform: translateY(-4px);} to {opacity:1; transform:translateY(0);} }
+
+  /* --- access model --- */
+  .access-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; padding: 5px 2px; border-bottom: 1px dashed rgba(255,255,255,0.06); }
+  .access-row b { color: var(--text); }
+  .access-row span { color: var(--text-dim); text-align: right; }
+
+  /* --- chat --- */
+  #chat { flex: 1; min-height: 260px; }
+  #chat .body { flex: 1; display: flex; flex-direction: column; }
+  #chat-transcript { flex: 1; overflow-y: auto; margin-bottom: 8px; min-height: 120px; }
+  .chat-msg { margin-bottom: 10px; }
+  .chat-msg .role { font-size: 10px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 2px; }
+  .chat-msg.user .bubble { background: var(--panel-3); }
+  .chat-msg.assistant .bubble { background: var(--panel-2); }
+  .bubble { border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45; }
+  .warn-badge { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; }
+  .warn-badge.injection { background: rgba(245,184,73,0.15); color: var(--amber); }
+  .warn-badge.guardrail { background: rgba(240,87,107,0.18); color: var(--red); }
+  #chat-form { display: flex; gap: 8px; }
+  #chat-input { flex: 1; }
+  #chat-input:disabled { opacity: 0.5; }
+  .chart-svg { max-width: 100%; height: auto; margin-top: 6px; }
+  .chart-title { font-size: 12px; font-weight: 700; color: var(--text); margin-top: 8px; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-size: 11px; }
+  .chart-legend-item { display: flex; align-items: center; gap: 4px; color: var(--text-dim); }
+  .chart-legend-swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+  .chat-empty { color: var(--text-dim); font-size: 12px; }
+
+  ::-webkit-scrollbar { width: 7px; }
+  ::-webkit-scrollbar-thumb { background: var(--panel-3); border-radius: 4px; }
+
+  @media (max-width: 980px) {
+    main { grid-template-columns: 1fr; overflow-y: auto; }
+    #left, #right { overflow-y: visible; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>AP Fraud Screening Crew</h1>
+    <span class="sub">CrewAI · MCP · least-privilege · human-in-the-loop</span>
+    <div class="spacer"></div>
+    <span class="pill"><span id="dot" class="dot"></span><span id="dotlabel">connecting…</span></span>
+  </header>
+  <main>
+    <div id="left">
+      <div id="stepper" class="panel">
+        <h2>Pipeline</h2>
+        <div class="body" id="stepper-body"></div>
+      </div>
+      <div id="agents" class="panel">
+        <h2>Multi-agent workflow</h2>
+        <div class="body" id="agents-body"></div>
+      </div>
+      <div id="txns" class="panel">
+        <h2>Invoices &amp; fraud checks <span class="count" id="txn-count">0</span></h2>
+        <div class="body"><table>
+          <thead><tr><th>ID</th><th>Vendor</th><th>Amount</th><th>Invoice #</th><th>Bank Acct Age</th><th>Decision</th><th>Repeat</th></tr></thead>
+          <tbody id="txn-tbody"></tbody>
+        </table></div>
+      </div>
+      <div id="approval" class="panel">
+        <h2>⚠ Awaiting AP-manager approval</h2>
+        <div class="body">
+          <div id="draft-list"></div>
+          <div id="approval-actions">
+            <input id="approval-feedback" type="text" placeholder="optional feedback" />
+            <button class="primary" id="approve-btn">Approve</button>
+            <button class="danger" id="reject-btn">Reject</button>
+          </div>
+        </div>
+      </div>
+      <div id="report" class="panel" style="display:none">
+        <h2>Audit report</h2>
+        <div class="body" id="report-body"></div>
+      </div>
+    </div>
+    <div id="right">
+      <div id="activity" class="panel">
+        <h2>Agent activity &amp; log <span class="count" id="log-count">0</span></h2>
+        <div class="body" id="log-body"><div class="chat-empty">Task starts/completions, every tool call, and every guardrail check appear here live, straight from CrewAI's own event bus.</div></div>
+      </div>
+      <div id="access" class="panel">
+        <h2>Access model</h2>
+        <div class="body">
+          <div class="access-row"><b>Invoice Intake Agent</b><span>read-only · invoices/</span></div>
+          <div class="access-row"><b>Fraud &amp; Anomaly Analyst</b><span>policy_lookup only · no filesystem</span></div>
+          <div class="access-row"><b>Payment Approver</b><span>memory only · no filesystem write tool</span></div>
+          <div class="access-row"><b>Audit Reporter</b><span>read-only · decisions/</span></div>
+          <div class="access-row"><b>Memory Reader</b><span>read_graph only · no write tools</span></div>
+          <div class="access-row"><b>Insights Agent (chat)</b><span>no tools at all · data injected, read-only</span></div>
+          <div class="access-row"><b>decisions.json (commit)</b><span>written by Python only, post-approval · no agent involved</span></div>
+        </div>
+      </div>
+      <div id="chat" class="panel">
+        <h2>Ask &amp; visualize <span class="count" id="chat-hint">locked</span></h2>
+        <div class="body">
+          <div id="chat-transcript"><div class="chat-empty">Once the run finishes, ask about the results here (it can also draw on what was recorded in memory during the run) - or try to get it to do something it shouldn't (re-approve an invoice, ignore the policy, etc.) and watch what happens.</div></div>
+          <form id="chat-form">
+            <input id="chat-input" type="text" placeholder="Ask a question, or try to break it…" disabled />
+            <button class="primary" type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const WS_URL = "ws://localhost:8766";
+const COLORS = ["#5b9dff", "#3ecf8e", "#f5b849", "#f0576b", "#c084fc", "#7dd3fc"];
+const STAGES = ["fetching", "checking", "drafting", "awaiting_approval", "committing", "reporting", "done"];
+const STAGE_LABELS = { fetching: "Fetch", checking: "Check", drafting: "Draft", awaiting_approval: "Approval", committing: "Commit", reporting: "Report", done: "Done", rejected: "Rejected", idle: "Idle" };
+
+const AGENT_ROLES = ["Invoice Intake Agent", "Fraud & Anomaly Analyst", "Payment Approver", "Audit Reporter"];
+const AGENT_BLURB = {
+  "Invoice Intake Agent": "reads invoices/ (read-only)",
+  "Fraud & Anomaly Analyst": "screens each invoice against the AP fraud policy",
+  "Payment Approver": "drafts decisions, checks/updates memory (commit itself is a plain Python write)",
+  "Audit Reporter": "reads decisions/ and writes the audit summary",
+};
+let agentState = {};
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function money(n) { return "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+// Small hand-rolled Markdown -> HTML renderer (headers, bold/italic, bullet
+// and numbered lists, paragraphs) - just enough for the kind of report text
+// CrewAI's report agent writes. Escapes first, then transforms, so none of
+// this depends on trusting the text's source.
+function inlineMd(s) {
+  return s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<i>$1</i>");
+}
+function renderMarkdown(text) {
+  const lines = escapeHtml(text).split(/\r?\n/);
+  let html = "", inList = false;
+  const closeList = () => { if (inList) { html += "</ul>"; inList = false; } };
+  for (const raw of lines) {
+    const line = raw.trim();
+    const heading = line.match(/^(#{1,4})\s+(.*)$/);
+    const bullet = line.match(/^[-*]\s+(.*)$/);
+    const numbered = line.match(/^\d+\.\s+(.*)$/);
+    if (heading) {
+      closeList();
+      const level = Math.min(heading[1].length + 2, 6);
+      html += `<h${level} class="md-h">${inlineMd(heading[2])}</h${level}>`;
+    } else if (bullet || numbered) {
+      if (!inList) { html += '<ul class="md-ul">'; inList = true; }
+      html += `<li>${inlineMd((bullet || numbered)[1])}</li>`;
+    } else if (line === "") {
+      closeList();
+    } else {
+      closeList();
+      html += `<p class="md-p">${inlineMd(line)}</p>`;
+    }
+  }
+  closeList();
+  return html;
+}
+
+function renderStepper(stage) {
+  const body = document.getElementById("stepper-body");
+  body.innerHTML = "";
+  const idx = STAGES.indexOf(stage);
+  const order = stage === "rejected" ? ["fetching", "checking", "drafting", "rejected"] : STAGES;
+  for (const s of order) {
+    const div = document.createElement("div");
+    const done = s === "rejected" ? false : STAGES.indexOf(s) < idx;
+    const active = s === stage;
+    div.className = "step" + (active ? " active" : "") + (done ? " done" : "") + (s === "rejected" && stage === "rejected" ? " rejected" : "");
+    div.textContent = (done ? "✓ " : "") + (STAGE_LABELS[s] || s);
+    body.appendChild(div);
+  }
+}
+
+function renderAgentCards() {
+  const body = document.getElementById("agents-body");
+  body.innerHTML = "";
+  for (const role of AGENT_ROLES) {
+    const info = agentState[role] || { status: "idle", action: "" };
+    const div = document.createElement("div");
+    div.className = "agent-card " + info.status;
+    div.innerHTML = `<div class="agent-top"><span class="agent-name">${escapeHtml(role)}</span><span class="agent-pill ${info.status}">${info.status}</span></div>` +
+      `<div class="agent-action">${escapeHtml(info.action || "waiting for its stage…")}</div>` +
+      `<div class="agent-tools">${escapeHtml(AGENT_BLURB[role] || "")}</div>`;
+    body.appendChild(div);
+  }
+}
+function markAgent(role, status, action) {
+  if (!role || !AGENT_ROLES.includes(role)) return;
+  agentState[role] = { status, action };
+  renderAgentCards();
+}
+renderAgentCards();
+
+let txnById = {};
+
+function renderTxnTable() {
+  const tbody = document.getElementById("txn-tbody");
+  tbody.innerHTML = "";
+  const rows = Object.values(txnById).sort((a, b) => a.id.localeCompare(b.id));
+  for (const t of rows) {
+    const tr = document.createElement("tr");
+    const decisionClass = t.decision ? t.decision.toLowerCase().replace(/\s+/g, "-") : "pending";
+    const bankAgeCls = t.bank_account_age_days != null && t.bank_account_age_days <= 14 ? "bank-age fresh" : "bank-age";
+    tr.innerHTML = `<td>${escapeHtml(t.id)}</td><td>${escapeHtml(t.vendor_name || t.vendor_id)}</td>` +
+      `<td>${money(t.amount)}</td><td>${escapeHtml(t.invoice_number || "")}</td>` +
+      `<td><span class="${bankAgeCls}">${t.bank_account_age_days != null ? t.bank_account_age_days + "d" : ""}</span></td>` +
+      `<td><span class="badge ${decisionClass}">${escapeHtml(t.decision || "pending")}</span></td>` +
+      `<td>${t.repeat_flagged_vendor ? '<span class="repeat-flag">●</span>' : ""}</td>`;
+    tbody.appendChild(tr);
+  }
+  document.getElementById("txn-count").textContent = rows.length;
+}
+
+function mergeIntoTxns(records) {
+  for (const r of records) {
+    txnById[r.id] = { ...(txnById[r.id] || {}), ...r };
+  }
+  renderTxnTable();
+}
+
+function renderDraft(decisions) {
+  const list = document.getElementById("draft-list");
+  list.innerHTML = "";
+  for (const d of decisions) {
+    const row = document.createElement("div");
+    row.className = "draft-row";
+    const cls = d.decision.toLowerCase().replace(/\s+/g, "-");
+    row.innerHTML = `<span><span class="badge ${cls}">${escapeHtml(d.decision)}</span> ${escapeHtml(d.id)} - ${escapeHtml(d.vendor_name)} (${money(d.amount)})</span><span class="just">${escapeHtml(d.justification)}</span>`;
+    list.appendChild(row);
+  }
+  document.getElementById("approval").classList.add("show");
+  mergeIntoTxns(decisions);
+}
+
+function addLog(entry) {
+  const body = document.getElementById("log-body");
+  const empty = body.querySelector(".chat-empty");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  let cls = entry.kind;
+  let text = "";
+  if (entry.kind === "task") {
+    text = `${entry.status}: ${escapeHtml(entry.name || "")}`;
+    if (entry.agent) markAgent(entry.agent, entry.status === "started" ? "working" : "done", entry.name || "");
+  } else if (entry.kind === "tool") {
+    text = `${escapeHtml(entry.agent || "agent")} → <b>${escapeHtml(entry.tool)}</b> ${entry.status}` + (entry.output ? `<br><span style="color:var(--text-dim)">${escapeHtml(entry.output)}</span>` : "");
+    if (entry.agent) markAgent(entry.agent, entry.status === "started" ? "working" : "done", `${entry.tool} ${entry.status}`);
+  } else if (entry.kind === "guardrail") {
+    cls += entry.status === "completed" ? (entry.success ? " pass" : " fail") : "";
+    text = entry.status === "started"
+      ? `checking guardrail "${escapeHtml(entry.name || "")}" (attempt ${entry.retry + 1})`
+      : (entry.success ? "guardrail passed" : `guardrail FAILED - retrying: ${escapeHtml(entry.error || "")}`);
+  } else if (entry.kind === "approval") {
+    text = entry.status === "approved" ? "human reviewer approved the draft" : `human reviewer REJECTED the draft${entry.feedback ? ": " + escapeHtml(entry.feedback) : ""}`;
+  } else if (entry.kind === "batch") {
+    text = entry.status === "committed"
+      ? `✓ ${escapeHtml(entry.name || "")}`
+      : `starting ${escapeHtml(entry.status)} - ${escapeHtml(entry.name || "")}`;
+  }
+  row.className = "log-row " + cls;
+  row.innerHTML = `<div class="log-kind">${escapeHtml(entry.kind)}</div><div>${text}</div>`;
+  body.appendChild(row);
+  body.scrollTop = body.scrollHeight;
+  document.getElementById("log-count").textContent = body.querySelectorAll(".log-row").length;
+}
+
+function fmtTick(v) {
+  if (Math.abs(v) >= 1000) {
+    const k = v / 1000;
+    return (Number.isInteger(k) ? k.toFixed(0) : k.toFixed(1)) + "k";
+  }
+  return String(Math.round(v));
+}
+
+function renderChart(spec) {
+  if (!spec || spec.chart_type === "none" || !spec.values || !spec.values.length) return "";
+  const values = spec.values;
+  const titleHtml = spec.title ? `<div class="chart-title">${escapeHtml(spec.title)}</div>` : "";
+
+  if (spec.chart_type === "pie") {
+    const total = values.reduce((a, b) => a + b, 0) || 1;
+    let angle = -Math.PI / 2, slices = "";
+    const size = 180, cx = size / 2, cy = size / 2, r = 70;
+    values.forEach((v, i) => {
+      const frac = v / total;
+      const next = angle + frac * Math.PI * 2;
+      const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
+      const x2 = cx + r * Math.cos(next), y2 = cy + r * Math.sin(next);
+      const largeArc = frac > 0.5 ? 1 : 0;
+      slices += `<path d="M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z" fill="${COLORS[i % COLORS.length]}"/>`;
+      angle = next;
+    });
+    const legend = (spec.labels || []).map((l, i) => `<div class="chart-legend-item"><span class="chart-legend-swatch" style="background:${COLORS[i % COLORS.length]}"></span>${escapeHtml(l)}</div>`).join("");
+    return `${titleHtml}<svg viewBox="0 0 ${size} ${size}" class="chart-svg" style="max-width:200px">${slices}</svg><div class="chart-legend">${legend}</div>`;
+  }
+
+  // bar - includes gridlines with numeric y-axis ticks, x/y axis titles,
+  // and a one-line legend naming what the single series represents (the
+  // chart is always one series by design - see ChartSpec's docstring -
+  // but a legend line still tells the viewer what the color means).
+  const width = 380, height = 220;
+  const n = values.length;
+  // Past ~6 categories, horizontal tick labels run into each other (each
+  // gets under 30 SVG units, not enough for a 7+ character id at any
+  // readable size) - angling them past that count is the standard fix,
+  // and needs more bottom margin than the horizontal case.
+  const rotateLabels = n > 6;
+  const padL = 46, padR = 14, padTop = 16, padBottom = rotateLabels ? 54 : 40;
+  const plotW = width - padL - padR, plotH = height - padTop - padBottom;
+  const maxVal = Math.max(1, ...values) * 1.15;
+  const groupWidth = plotW / n;
+  const barWidth = groupWidth * 0.6;
+
+  let gridlines = "";
+  const tickCount = 4;
+  for (let t = 0; t <= tickCount; t++) {
+    const val = (maxVal / tickCount) * t;
+    const y = padTop + plotH - (val / maxVal) * plotH;
+    gridlines += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${(padL + plotW).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e4e9f2" stroke-width="1"/>`;
+    gridlines += `<text x="${padL - 6}" y="${(y + 3).toFixed(1)}" font-size="8.5" text-anchor="end" fill="#93a0bd">${fmtTick(val)}</text>`;
+  }
+
+  let bars = "";
+  values.forEach((v, i) => {
+    const barHeight = (v / maxVal) * plotH;
+    const x = padL + i * groupWidth + (groupWidth - barWidth) / 2;
+    const y = padTop + plotH - barHeight;
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" fill="${COLORS[0]}" rx="2"/>`;
+  });
+  const xLabels = (spec.labels || []).map((l, i) => {
+    const lx = (padL + i * groupWidth + groupWidth / 2).toFixed(1);
+    const text = escapeHtml(String(l).slice(0, 10));
+    if (rotateLabels) {
+      const ly = (padTop + plotH + 11).toFixed(1);
+      return `<text x="${lx}" y="${ly}" font-size="8" text-anchor="end" fill="#93a0bd" transform="rotate(-45, ${lx}, ${ly})">${text}</text>`;
+    }
+    const ly = (padTop + plotH + 14).toFixed(1);
+    return `<text x="${lx}" y="${ly}" font-size="9" text-anchor="middle" fill="#93a0bd">${text}</text>`;
+  }).join("");
+
+  const xAxisTitle = spec.x_label
+    ? `<text x="${(padL + plotW / 2).toFixed(1)}" y="${height - 6}" font-size="9.5" font-weight="700" text-anchor="middle" fill="#5b6b8c">${escapeHtml(spec.x_label)}</text>`
+    : "";
+  const yMid = (padTop + plotH / 2).toFixed(1);
+  const yAxisTitle = spec.y_label
+    ? `<text x="12" y="${yMid}" font-size="9.5" font-weight="700" text-anchor="middle" fill="#5b6b8c" transform="rotate(-90, 12, ${yMid})">${escapeHtml(spec.y_label)}</text>`
+    : "";
+  const axisLines = `<line x1="${padL}" y1="${padTop}" x2="${padL}" y2="${(padTop + plotH).toFixed(1)}" stroke="#c7cfe0" stroke-width="1"/>` +
+    `<line x1="${padL}" y1="${(padTop + plotH).toFixed(1)}" x2="${(padL + plotW).toFixed(1)}" y2="${(padTop + plotH).toFixed(1)}" stroke="#c7cfe0" stroke-width="1"/>`;
+
+  const legendName = spec.y_label || spec.title || "Value";
+  const legend = `<div class="chart-legend"><div class="chart-legend-item"><span class="chart-legend-swatch" style="background:${COLORS[0]}"></span>${escapeHtml(legendName)}</div></div>`;
+
+  return `${titleHtml}<svg viewBox="0 0 ${width} ${height}" class="chart-svg">${gridlines}${axisLines}${bars}${xLabels}${xAxisTitle}${yAxisTitle}</svg>${legend}`;
+}
+
+function addChatMessage(role, text, extra) {
+  extra = extra || {};
+  const transcript = document.getElementById("chat-transcript");
+  const empty = transcript.querySelector(".chat-empty");
+  if (empty) empty.remove();
+  const div = document.createElement("div");
+  div.className = "chat-msg " + role;
+  let badges = "";
+  if (extra.possible_injection) badges += `<div class="warn-badge injection">⚠ possible prompt-injection pattern detected in the question</div>`;
+  if (extra.guardrail_triggered) badges += `<div class="warn-badge guardrail">🛡 output guardrail blocked an unsafe-sounding claim</div>`;
+  div.innerHTML = `<div class="role">${role === "user" ? "You" : "Insights Agent"}</div><div class="bubble">${renderMarkdown(text)}${extra.chart ? renderChart(extra.chart) : ""}</div>${badges}`;
+  transcript.appendChild(div);
+  transcript.scrollTop = transcript.scrollHeight;
+}
+
+function setChatEnabled(stage) {
+  const input = document.getElementById("chat-input");
+  const hint = document.getElementById("chat-hint");
+  const ready = stage === "done" || stage === "rejected";
+  input.disabled = !ready;
+  input.placeholder = ready ? "Ask a question, or try to break it…" : "unlocks once the run finishes…";
+  hint.textContent = ready ? "ready" : "locked";
+}
+
+function applyState(state) {
+  renderStepper(state.stage);
+  setChatEnabled(state.stage);
+  (state.transactions || []).forEach((t) => (txnById[t.id] = { ...txnById[t.id], ...t }));
+  (state.classifications || []).forEach((c) => (txnById[c.id] = { ...txnById[c.id], ...c }));
+  (state.committed || []).forEach((c) => (txnById[c.id] = { ...txnById[c.id], ...c }));
+  renderTxnTable();
+  if (state.draft && state.stage === "awaiting_approval") renderDraft(state.draft);
+  if (state.report) {
+    document.getElementById("report").style.display = "flex";
+    document.getElementById("report-body").innerHTML = renderMarkdown(state.report);
+  }
+  (state.log || []).forEach(addLog);
+  (state.chat || []).forEach((m) => addChatMessage(m.role, m.text || m.answer, m));
+}
+
+function connect() {
+  const ws = new WebSocket(WS_URL);
+  const dot = document.getElementById("dot");
+  const label = document.getElementById("dotlabel");
+  ws.onopen = () => { dot.className = "dot live"; label.textContent = "live"; };
+  ws.onclose = () => { dot.className = "dot down"; label.textContent = "reconnecting…"; setTimeout(connect, 1500); };
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "snapshot") applyState(msg.state);
+    else if (msg.type === "stage") { renderStepper(msg.stage); setChatEnabled(msg.stage); if (msg.stage !== "awaiting_approval") document.getElementById("approval").classList.remove("show"); }
+    else if (msg.type === "log") addLog(msg.entry);
+    else if (msg.type === "transactions") mergeIntoTxns(msg.transactions);
+    else if (msg.type === "classifications") mergeIntoTxns(msg.classifications);
+    else if (msg.type === "draft") renderDraft(msg.decisions);
+    else if (msg.type === "committed") { mergeIntoTxns(msg.decisions); document.getElementById("approval").classList.remove("show"); }
+    else if (msg.type === "report") { document.getElementById("report").style.display = "flex"; document.getElementById("report-body").innerHTML = renderMarkdown(msg.report); }
+    else if (msg.type === "chat_answer") addChatMessage("assistant", msg.answer, msg);
+  };
+
+  window.__sendMsg = (obj) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); };
+}
+connect();
+
+document.getElementById("approve-btn").addEventListener("click", () => {
+  window.__sendMsg({ type: "approval", decision: "approve", feedback: document.getElementById("approval-feedback").value });
+  document.getElementById("approval").classList.remove("show");
+});
+document.getElementById("reject-btn").addEventListener("click", () => {
+  window.__sendMsg({ type: "approval", decision: "reject", feedback: document.getElementById("approval-feedback").value });
+  document.getElementById("approval").classList.remove("show");
+});
+document.getElementById("chat-form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const input = document.getElementById("chat-input");
+  const q = input.value.trim();
+  if (!q) return;
+  addChatMessage("user", q, {});
+  window.__sendMsg({ type: "chat", question: q });
+  input.value = "";
+});
+</script>
+</body>
+</html>

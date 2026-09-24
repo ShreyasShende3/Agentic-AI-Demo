@@ -1,0 +1,12 @@
+.chroma/
+.mcp_memory/
+data/decisions/*.json
+__pycache__/
+*.pyc
+.venv/
+.env
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
