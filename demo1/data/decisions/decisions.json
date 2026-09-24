@@ -1,0 +1,122 @@
+[
+  {
+    "id": "inv_001",
+    "vendor_id": "vnd_100",
+    "vendor_name": "Harborview Office Supplies",
+    "amount": 2400.0,
+    "invoice_number": "NW-2291",
+    "decision": "Approve",
+    "justification": "No policy clause applies as the invoice amount matches the PO amount and the bank account age is not recent.",
+    "repeat_flagged_vendor": false
+  },
+  {
+    "id": "inv_002",
+    "vendor_id": "vnd_204",
+    "vendor_name": "Northwind Logistics",
+    "amount": 42000.0,
+    "invoice_number": "NL-8834",
+    "decision": "Hold for Review",
+    "justification": "An invoice of $5,000 or more where `bank_account_age_days` is 14 or fewer can never be Approve - it must be Hold for Review.",
+    "repeat_flagged_vendor": false
+  },
+  {
+    "id": "inv_003",
+    "vendor_id": "vnd_311",
+    "vendor_name": "Alden Cleaning Services",
+    "amount": 850.0,
+    "invoice_number": "AC-1102",
+    "decision": "Approve",
+    "justification": "No policy clause applies as the invoice amount matches the PO amount and the bank account age is not recent.",
+    "repeat_flagged_vendor": false
+  },
+  {
+    "id": "inv_004",
+    "vendor_id": "vnd_405",
+    "vendor_name": "TitanForge Steelworks",
+    "amount": 118000.0,
+    "invoice_number": "TF-7710",
+    "decision": "Hold for Review",
+    "justification": "An invoice of $5,000 or more where `bank_account_age_days` is 14 or fewer can never be Approve - it must be Hold for Review.",
+    "repeat_flagged_vendor": false
+  },
+  {
+    "id": "inv_005",
+    "vendor_id": "vnd_512",
+    "vendor_name": "Quarry Point Materials",
+    "amount": 15000.0,
+    "invoice_number": "QP-3391",
+    "decision": "Hold for Review",
+    "justification": "An invoice whose amount differs from its referenced PO amount by more than 10% can never be Approve.",
+    "repeat_flagged_vendor": false
+  },
+  {
+    "id": "inv_006",
+    "vendor_id": "vnd_311",
+    "vendor_name": "Alden Cleaning Services",
+    "amount": 850.0,
+    "invoice_number": "AC-1102",
+    "decision": "Hold for Review",
+    "justification": "The same invoice number should never be paid twice. A duplicate invoice number appearing again is a red flag for resubmission fraud, whether accidental or deliberate.",
+    "repeat_flagged_vendor": true
+  },
+  {
+    "id": "inv_007",
+    "vendor_id": "vnd_618",
+    "vendor_name": "Brightline Courier Co.",
+    "amount": 350.0,
+    "invoice_number": "BR-2004",
+    "decision": "Approve",
+    "justification": "No policy clause applies as the invoice amount matches the PO amount and the bank account age is not recent.",
+    "repeat_flagged_vendor": false
+  },
+  {
+    "id": "inv_008",
+    "vendor_id": "vnd_701",
+    "vendor_name": "Sparrow Peak Consulting",
+    "amount": 1800.0,
+    "invoice_number": "SP-0001",
+    "decision": "Hold for Review",
+    "justification": "An invoice of $5,000 or more where `bank_account_age_days` is 14 or fewer can never be Approve - it must be Hold for Review.",
+    "repeat_flagged_vendor": false
+  },
+  {
+    "id": "inv_009",
+    "vendor_id": "vnd_744",
+    "vendor_name": "Palisade Print & Design",
+    "amount": 1200.0,
+    "invoice_number": "PL-4471",
+    "decision": "Approve",
+    "justification": "No policy clause applies as the invoice amount matches the PO amount and the bank account age is not recent.",
+    "repeat_flagged_vendor": false
+  },
+  {
+    "id": "inv_010",
+    "vendor_id": "vnd_204",
+    "vendor_name": "Northwind Logistics",
+    "amount": 37500.0,
+    "invoice_number": "NL-8850",
+    "decision": "Hold for Review",
+    "justification": "An invoice of $5,000 or more where `bank_account_age_days` is 14 or fewer can never be Approve - it must be Hold for Review.",
+    "repeat_flagged_vendor": false
+  },
+  {
+    "id": "inv_011",
+    "vendor_id": "vnd_820",
+    "vendor_name": "Granite Mesa Freight",
+    "amount": 50000.0,
+    "invoice_number": "GM-9012",
+    "decision": "Hold for Review",
+    "justification": "An invoice of $5,000 or more where `bank_account_age_days` is 14 or fewer can never be Approve - it must be Hold for Review.",
+    "repeat_flagged_vendor": false
+  },
+  {
+    "id": "inv_012",
+    "vendor_id": "vnd_915",
+    "vendor_name": "Riverton Valve & Pump",
+    "amount": 10000.0,
+    "invoice_number": "RV-3345",
+    "decision": "Approve",
+    "justification": "No policy clause applies as the invoice amount is within 10% of the PO amount and the bank account age is not recent.",
+    "repeat_flagged_vendor": false
+  }
+]
