@@ -1,0 +1,10 @@
+{
+  "name": "sequence-bug-hunter-sparring-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Legal-move-only WS opponent for the bug-hunting demo. Imports sequence-game's rules engine read-only; never modifies that repo.",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

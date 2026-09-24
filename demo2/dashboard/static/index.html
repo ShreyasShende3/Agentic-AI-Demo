@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sequence Bug Hunter</title>
+<style>
+  /* Colors/board/card styling ported directly from sequence-game's own
+     client/style.css ("Felt & Brass" visual direction) - not a
+     reinterpretation. Layout chrome (header/sidebar/panels) is this
+     dashboard's own. */
+  :root {
+    --color-bg: #0c1f15;
+    --color-surface: #163726;
+    --color-surface-alt: #204d34;
+    --color-surface-raised: #2c5b3d;
+    --color-text: #f4ecd9;
+    --color-text-dim: #b7c9b6;
+    --color-border: #3d6b4c;
+    --color-red: #e5484d;
+    --color-blue: #4c8bf5;
+    --color-green: #46c85a;
+    --color-wild: #c9a227;
+    --color-highlight: #e3c15c;
+    --color-chip-ring: rgba(244, 236, 217, 0.92);
+    --radius: 10px;
+    --cell-size: clamp(28px, min(6.2vh, 7vw), 56px);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--color-bg); color: var(--color-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+  #app { display: flex; flex-direction: column; height: 100vh; min-height: 560px; }
+
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 18px; border-bottom: 1px solid var(--color-border);
+    background: linear-gradient(180deg, #163726, #0e2519);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: 0.2px; }
+  header .sub { color: var(--color-text-dim); font-size: 11.5px; }
+  .spacer { flex: 1; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px; border-radius: 999px; font-size: 11.5px;
+    border: 1px solid var(--color-border); background: var(--color-surface-alt); color: var(--color-text-dim);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-text-dim); }
+  .dot.live { background: var(--color-green); box-shadow: 0 0 8px var(--color-green); }
+  .dot.down { background: var(--color-red); }
+
+  main {
+    flex: 1; display: flex; flex-wrap: wrap; gap: 18px; padding: 14px 18px;
+    overflow: auto; align-content: flex-start; justify-content: center;
+  }
+
+  #board-col { display: flex; flex-direction: column; gap: 10px; flex: 0 0 auto; }
+
+  #turnbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 14px;
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px;
+    font-size: 12.5px; color: var(--color-text-dim);
+  }
+  #turnbar b { color: var(--color-text); }
+  .status-badge {
+    padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600;
+    background: var(--color-surface-alt); border: 1px solid var(--color-border); color: var(--color-text-dim);
+  }
+  .status-badge.playing { color: var(--color-highlight); border-color: var(--color-highlight); }
+  .status-badge.finished { color: var(--color-wild); border-color: var(--color-wild); }
+
+  /* --- board (ported from sequence-game/client/style.css) --- */
+  .board-scroll {
+    overflow: auto; border-radius: var(--radius); background: var(--color-surface); padding: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .board { display: flex; flex-direction: column; gap: 2px; width: max-content; margin: 0 auto; }
+  .board-row { display: flex; gap: 2px; }
+  .cell {
+    position: relative; width: var(--cell-size); height: var(--cell-size);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--color-surface-alt); border-radius: 4px; border: none;
+    font-size: clamp(0.5rem, 1.4vw, 0.78rem); color: var(--color-text-dim); user-select: none; padding: 0;
+  }
+  .cell.is-corner {
+    background: linear-gradient(135deg, var(--color-wild), #8a6d1f); color: #241b04; font-weight: 700;
+    font-size: clamp(0.9rem, 2.2vw, 1.2rem);
+  }
+  .cell .chip {
+    position: absolute; width: 68%; height: 68%; border-radius: 50%;
+    box-shadow: 0 0 0 2px var(--color-chip-ring), inset 0 0 0 1px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.55);
+  }
+  .cell .chip.red { background: var(--color-red); }
+  .cell .chip.blue { background: var(--color-blue); }
+  .cell .chip.green { background: var(--color-green); }
+  @keyframes cell-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(227,193,92,0.85); }
+    70% { box-shadow: 0 0 0 9px rgba(227,193,92,0); }
+    100% { box-shadow: 0 0 0 0 rgba(227,193,92,0); }
+  }
+  .cell.is-recent-move { animation: cell-pulse 0.9s ease-out; }
+  /* Persistent ring for every cell in a completed sequence (ported from
+     sequence-game/client/style.css) - stays until the game restarts, on
+     top of (not instead of) the one-shot flash below. */
+  .cell.is-in-sequence.team-seq-red { box-shadow: 0 0 0 2px var(--color-red) inset, 0 0 7px 1px rgba(229,72,77,0.55); }
+  .cell.is-in-sequence.team-seq-blue { box-shadow: 0 0 0 2px var(--color-blue) inset, 0 0 7px 1px rgba(76,139,245,0.55); }
+  .cell.is-in-sequence.team-seq-green { box-shadow: 0 0 0 2px var(--color-green) inset, 0 0 7px 1px rgba(70,200,90,0.55); }
+  @keyframes sequence-flash {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,96,0); }
+    50% { box-shadow: 0 0 12px 4px rgba(201,168,96,0.95); }
+  }
+  .cell.is-sequence-flash::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    animation: sequence-flash 0.9s ease-in-out 3;
+  }
+
+  .player-badge {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 600; border: 1px solid var(--color-border); background: var(--color-surface-alt);
+  }
+  .player-dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.3); }
+  .player-dot.red { background: var(--color-red); }
+  .player-dot.blue { background: var(--color-blue); }
+  .player-dot.green { background: var(--color-green); }
+
+  .seq-tally { display: flex; gap: 8px; font-size: 12px; }
+  .seq-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; background: var(--color-surface-alt); border: 1px solid var(--color-border); }
+
+  #seq-toast {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    background: linear-gradient(135deg, var(--color-wild), #8a6d1f); color: #241b04; font-weight: 700;
+    padding: 8px 18px; border-radius: 999px; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease; z-index: 50; font-size: 13px;
+  }
+  #seq-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* --- hand / playing card (ported) --- */
+  #hand-wrap {
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 10px 12px;
+  }
+  #hand-wrap h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--color-text-dim); margin: 0 0 8px; }
+  .hand-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+  .hand-card {
+    width: clamp(44px, 6.5vw, 62px); height: clamp(62px, 9vw, 88px);
+    display: flex; border-radius: 9px; position: relative;
+    background: linear-gradient(160deg, #faf3e2, #f1e6c9); border: 1px solid #c9a860;
+    box-shadow: 0 0 0 1px #4a3a12 inset, 0 6px 14px -6px rgba(0,0,0,0.55);
+    color: #1e1608; font-family: Georgia, "Iowan Old Style", serif;
+  }
+  .hand-card.is-red { color: #a3352f; }
+  .pcard-index { position: absolute; display: flex; flex-direction: column; align-items: center; line-height: 1; }
+  .pcard-index-tl { top: 6%; left: 10%; }
+  .pcard-index-br { bottom: 6%; right: 10%; transform: rotate(180deg); }
+  .pcard-rank { font-size: clamp(0.55rem, 1.6vw, 0.8rem); font-weight: 700; }
+  .pcard-suit-mini { font-size: clamp(0.45rem, 1.3vw, 0.65rem); }
+  .pcard-center { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .pcard-suit-big { font-size: clamp(1.1rem, 3.4vw, 1.7rem); }
+  .pcard-jack svg { width: 58%; height: auto; }
+  .jbust-face, .jbust-collar { fill: #f4ecd9; stroke: #8a6a24; stroke-width: 1.3; }
+  .jbust-crown { fill: #c9a227; stroke: #8a6a24; stroke-width: 1; }
+  .jbust-eye, .jbust-nose { fill: #3a2a10; }
+  .jbust-mouth { fill: none; stroke: #3a2a10; stroke-width: 1.1; stroke-linecap: round; }
+  .jbust-torso { fill: #2a2118; }
+  .is-red .jbust-torso { fill: #a3352f; }
+
+  #sidebar { display: flex; flex-direction: column; gap: 12px; flex: 1 1 400px; min-width: 340px; max-width: 480px; }
+  .panel {
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .panel h2 {
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--color-text-dim);
+    margin: 0; padding: 9px 13px; border-bottom: 1px solid var(--color-border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel .count { background: var(--color-surface-alt); border-radius: 999px; padding: 1px 8px; font-size: 11px; color: var(--color-text); }
+  .panel .body { padding: 7px 9px; overflow-y: auto; }
+
+  #probes.panel .body { max-height: 130px; }
+  .probe-row { display: flex; align-items: flex-start; gap: 8px; padding: 5px 4px; font-size: 12px; }
+  .probe-icon { flex: none; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; margin-top: 1px; }
+  .probe-icon.pass { background: rgba(70,200,90,0.18); color: var(--color-green); }
+  .probe-icon.fail { background: rgba(229,72,77,0.18); color: var(--color-red); }
+  .probe-text b { color: var(--color-text); }
+  .probe-text span { color: var(--color-text-dim); }
+
+  #activity.panel { flex: 1; }
+  #activity .body { flex: 1; max-height: 420px; }
+  .act-card {
+    border: 1px solid var(--color-border); border-left: 3px solid var(--color-text-dim);
+    background: var(--color-surface-alt); border-radius: 8px; padding: 6px 9px; margin-bottom: 6px;
+    font-size: 12px; animation: slidein 0.3s ease-out;
+  }
+  .act-card.rag_query { border-left-color: var(--color-wild); }
+  .act-card.memory_read { border-left-color: var(--color-blue); }
+  .act-card.memory_write { border-left-color: var(--color-green); }
+  .act-card.tool_call { border-left-color: var(--color-highlight); }
+  .act-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .act-kind {
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 999px;
+    background: rgba(244,236,217,0.1); color: var(--color-text-dim);
+  }
+  .act-turn { color: var(--color-text-dim); font-size: 10.5px; }
+  .act-detail { color: var(--color-text-dim); margin-top: 2px; }
+  .act-empty { color: var(--color-text-dim); font-size: 12px; padding: 10px 4px; }
+  @keyframes slidein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+  #movelog.panel .body { max-height: 130px; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 11px; }
+  .move-line { padding: 3px 2px; color: var(--color-text-dim); border-bottom: 1px dashed rgba(244,236,217,0.08); }
+  .move-line b { color: var(--color-text); }
+  .move-line.applied { color: #9fd39f; }
+  .move-line.rejected { color: #e59a9a; }
+
+  ::-webkit-scrollbar { width: 7px; }
+  ::-webkit-scrollbar-thumb { background: var(--color-surface-raised); border-radius: 4px; }
+
+  @media (max-width: 900px) {
+    #board-col { width: 100%; }
+    .board-scroll { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div id="seq-toast"></div>
+<div id="app">
+  <header>
+    <h1>Sequence Bug Hunter</h1>
+    <span class="sub">LangGraph agent · live over the real WebSocket protocol</span>
+    <div class="spacer"></div>
+    <span id="statuspill" class="pill"><span id="dot" class="dot"></span><span id="dotlabel">connecting…</span></span>
+  </header>
+  <main>
+    <div id="board-col">
+      <div id="turnbar">
+        <span>Turn <b id="turnnum">0</b></span>
+        <span id="phasebadge" class="status-badge">idle</span>
+        <span id="players-row" class="seq-tally"></span>
+        <div class="spacer"></div>
+        <span id="seq-row" class="seq-tally"></span>
+      </div>
+      <div class="board-scroll"><div id="board" class="board"></div></div>
+      <div id="hand-wrap">
+        <h2>Agent's hand (dealt cards)</h2>
+        <div id="hand" class="hand-strip"></div>
+      </div>
+    </div>
+    <div id="sidebar">
+      <div id="activity" class="panel">
+        <h2>Agent activity - tools · RAG · memory <span class="count" id="activitycount">0</span></h2>
+        <div class="body" id="activitybody"><div class="act-empty">Every turn: a RAG lookup, a memory recall, an LLM tool-call decision, a WebSocket tool call, and a memory write - all logged here as they happen.</div></div>
+      </div>
+      <div id="probes" class="panel">
+        <h2>Security probes <span class="count" id="probecount">0/0</span></h2>
+        <div class="body" id="probebody"></div>
+      </div>
+      <div id="movelog" class="panel">
+        <h2>Move log</h2>
+        <div class="body" id="movebody"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const WS_URL = "ws://localhost:8765";
+const RED_SUITS = ["H", "D"];
+const SUIT_SYMBOLS = { S: "♠", H: "♥", D: "♦", C: "♣" };
+const TWO_EYED_JACKS = ["JC", "JD"];
+const ONE_EYED_JACKS = ["JH", "JS"];
+const MAX_ACTIVITY_DOM = 120;
+
+const TWO_EYED_BUST = `<svg viewBox="0 0 44 58">
+  <path class="jbust-torso" d="M7 58 L11 40 Q22 34 33 40 L37 58 Z"/>
+  <path class="jbust-collar" d="M14 41 Q22 47 30 41 L30 36 Q22 41 14 36 Z"/>
+  <circle class="jbust-face" cx="22" cy="25" r="11.5"/>
+  <circle class="jbust-eye" cx="18" cy="24" r="1.5"/>
+  <circle class="jbust-eye" cx="26" cy="24" r="1.5"/>
+  <path class="jbust-mouth" d="M18 31 Q22 33.5 26 31"/>
+  <path class="jbust-crown" d="M11 15 L13.5 5 L18 12 L22 3 L26 12 L30.5 5 L33 15 Z"/>
+</svg>`;
+const ONE_EYED_BUST = `<svg viewBox="0 0 44 58">
+  <g transform="rotate(-9 22 30)">
+    <path class="jbust-torso" d="M7 58 L11 40 Q22 34 33 40 L37 58 Z"/>
+    <path class="jbust-collar" d="M14 41 Q22 47 30 41 L30 36 Q22 41 14 36 Z"/>
+    <circle class="jbust-face" cx="22" cy="25" r="11.5"/>
+    <circle class="jbust-eye" cx="17" cy="24" r="1.5"/>
+    <path class="jbust-nose" d="M11 24 L7 26 L11 27 Z"/>
+    <path class="jbust-mouth" d="M17 31 Q21 33 25 31.5"/>
+    <path class="jbust-crown" d="M11 15 L13.5 5 L18 12 L22 3 L26 12 L30.5 5 L33 15 Z"/>
+  </g>
+</svg>`;
+
+function rankLabel(code) { const r = code.slice(0, -1); return r === "T" ? "10" : r; }
+function suitSymbol(code) { return SUIT_SYMBOLS[code.slice(-1)] || code.slice(-1); }
+
+function buildBoardGrid() {
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  for (let r = 0; r < 10; r++) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "board-row";
+    for (let c = 0; c < 10; c++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.id = `cell-${r}-${c}`;
+      rowEl.appendChild(cell);
+    }
+    board.appendChild(rowEl);
+  }
+}
+buildBoardGrid();
+
+// "row,col" -> Set of team colors - every cell that has ever been part of
+// a completed sequence. renderBoard() rebuilds every cell's className on
+// every call, so this has to be reapplied after each render, not just
+// once when a sequence completes.
+const sequenceCellTeams = {};
+
+function recordSequenceCells(team, cellGroups) {
+  for (const seq of cellGroups || []) {
+    for (const [r, c] of seq) {
+      const key = `${r},${c}`;
+      if (!sequenceCellTeams[key]) sequenceCellTeams[key] = new Set();
+      sequenceCellTeams[key].add(team);
+    }
+  }
+}
+
+function applyPersistentSequenceHighlights() {
+  for (const [key, teams] of Object.entries(sequenceCellTeams)) {
+    const cell = document.getElementById(`cell-${key.replace(",", "-")}`);
+    if (!cell || cell.classList.contains("is-corner")) continue; // corners are shared/gold already, same exclusion as the real game
+    cell.classList.add("is-in-sequence");
+    for (const team of teams) cell.classList.add(`team-seq-${team}`);
+  }
+}
+
+function renderBoard(boardCards, chips) {
+  if (!boardCards) return;
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 10; c++) {
+      const cell = document.getElementById(`cell-${r}-${c}`);
+      const card = boardCards[r][c];
+      const isWild = card === "WILD";
+      cell.className = "cell" + (isWild ? " is-corner" : "");
+      cell.innerHTML = isWild ? "★" : `${rankLabel(card)}${suitSymbol(card)}`;
+      const chipTeam = chips && chips[r][c];
+      if (chipTeam) {
+        const chip = document.createElement("div");
+        chip.className = "chip " + chipTeam;
+        cell.appendChild(chip);
+      }
+    }
+  }
+  applyPersistentSequenceHighlights();
+}
+
+function buildHandCard(card) {
+  const wrap = document.createElement("div");
+  const suit = card.slice(-1);
+  wrap.className = "hand-card" + (RED_SUITS.includes(suit) ? " is-red" : "");
+
+  for (const corner of ["tl", "br"]) {
+    const idx = document.createElement("span");
+    idx.className = `pcard-index pcard-index-${corner}`;
+    const rank = document.createElement("span");
+    rank.className = "pcard-rank";
+    rank.textContent = rankLabel(card);
+    const suitMini = document.createElement("span");
+    suitMini.className = "pcard-suit-mini";
+    suitMini.textContent = suitSymbol(card);
+    idx.appendChild(rank);
+    idx.appendChild(suitMini);
+    wrap.appendChild(idx);
+  }
+
+  const center = document.createElement("span");
+  center.className = "pcard-center";
+  if (TWO_EYED_JACKS.includes(card)) {
+    center.classList.add("pcard-jack");
+    center.innerHTML = TWO_EYED_BUST;
+  } else if (ONE_EYED_JACKS.includes(card)) {
+    center.classList.add("pcard-jack");
+    center.innerHTML = ONE_EYED_BUST;
+  } else {
+    const big = document.createElement("span");
+    big.className = "pcard-suit-big";
+    big.textContent = suitSymbol(card);
+    center.appendChild(big);
+  }
+  wrap.appendChild(center);
+  return wrap;
+}
+
+function renderHand(hand) {
+  if (!hand) return;
+  const wrap = document.getElementById("hand");
+  wrap.innerHTML = "";
+  for (const card of hand) wrap.appendChild(buildHandCard(card));
+}
+
+function flashLastMove(choice) {
+  if (!choice || choice.is_discard) return;
+  const { target_row, target_col } = choice;
+  if (target_row == null || target_col == null) return;
+  const cell = document.getElementById(`cell-${target_row}-${target_col}`);
+  if (!cell) return;
+  cell.classList.remove("is-recent-move");
+  void cell.offsetWidth;
+  cell.classList.add("is-recent-move");
+}
+
+const TEAM_LABEL = { red: "Red", blue: "Blue", green: "Green" };
+
+function renderPlayers(info) {
+  if (!info) return;
+  const row = document.getElementById("players-row");
+  const agent = info.agent || {};
+  const bot = info.bot || {};
+  row.innerHTML = `
+    <span class="player-badge"><span class="player-dot ${agent.team || ""}"></span>🤖 ${agent.name || "Agent"} (${TEAM_LABEL[agent.team] || "?"})</span>
+    <span class="player-badge"><span class="player-dot ${bot.team || ""}"></span>⚙️ ${bot.name || "Sparring Bot"} (${TEAM_LABEL[bot.team] || "?"})</span>`;
+}
+
+function renderSequenceTally(seqInfo) {
+  if (!seqInfo) return;
+  const row = document.getElementById("seq-row");
+  const counts = seqInfo.counts || {};
+  const needed = seqInfo.needed;
+  row.innerHTML = Object.keys(counts).length
+    ? Object.entries(counts).map(([team, n]) =>
+        `<span class="seq-pill"><span class="player-dot ${team}"></span>${TEAM_LABEL[team] || team}: ${n}${needed ? "/" + needed : ""}</span>`
+      ).join("")
+    : "";
+}
+
+function flashSequenceCells(cells) {
+  for (const seq of cells) {
+    for (const [r, c] of seq) {
+      const cell = document.getElementById(`cell-${r}-${c}`);
+      if (!cell) continue;
+      cell.classList.remove("is-sequence-flash");
+      void cell.offsetWidth;
+      cell.classList.add("is-sequence-flash");
+    }
+  }
+}
+
+function showSequenceToast(entry) {
+  const toast = document.getElementById("seq-toast");
+  const who = entry.mover === "bot" ? "Sparring Bot" : "Agent";
+  const team = TEAM_LABEL[entry.team] || entry.team;
+  const count = (entry.counts || {})[entry.team];
+  toast.textContent = `🎉 ${team} (${who}) completed a sequence! ${count ? `(${count}${entry.needed ? "/" + entry.needed : ""})` : ""}`;
+  toast.classList.add("show");
+  clearTimeout(toast._hideTimer);
+  toast._hideTimer = setTimeout(() => toast.classList.remove("show"), 3200);
+}
+
+function renderProbes(results) {
+  const body = document.getElementById("probebody");
+  body.innerHTML = "";
+  let passed = 0;
+  for (const r of results) {
+    if (r.passed) passed++;
+    const row = document.createElement("div");
+    row.className = "probe-row";
+    row.innerHTML = `<span class="probe-icon ${r.passed ? "pass" : "fail"}">${r.passed ? "✓" : "✕"}</span>
+      <span class="probe-text"><b>${r.name}</b><br><span>${r.description}</span></span>`;
+    body.appendChild(row);
+  }
+  document.getElementById("probecount").textContent = `${passed}/${results.length}`;
+}
+
+const ACT_LABELS = { rag_query: "RAG", memory_read: "MEMORY READ", memory_write: "MEMORY WRITE", tool_call: "TOOL CALL" };
+
+function activityDetail(e) {
+  if (e.kind === "rag_query") {
+    const snippet = (e.results || [])[0] || "(no match)";
+    return `queried policy KB: "${e.query}" → ${snippet.slice(0, 110)}${snippet.length > 110 ? "…" : ""}`;
+  }
+  if (e.kind === "memory_read") {
+    if (!e.recalled || !e.recalled.length) return `recall("${e.query.slice(0, 60)}…") → nothing similar yet`;
+    return `recall("${e.query.slice(0, 50)}…") → "${e.recalled[0].text.slice(0, 100)}"`;
+  }
+  if (e.kind === "memory_write") {
+    return `wrote to game_journal: "${e.text}"`;
+  }
+  if (e.kind === "tool_call") {
+    const base = `${e.tool} → ${typeof e.result === "string" ? e.result : JSON.stringify(e.result)}`;
+    return e.reasoning ? `${base}<br><em>reasoning: ${e.reasoning}</em>` : base;
+  }
+  return "";
+}
+
+function addActivity(e) {
+  const body = document.getElementById("activitybody");
+  const empty = body.querySelector(".act-empty");
+  if (empty) empty.remove();
+  const card = document.createElement("div");
+  card.className = "act-card " + e.kind;
+  card.innerHTML = `<div class="act-head"><span class="act-kind">${ACT_LABELS[e.kind] || e.kind}</span><span class="act-turn">turn ${e.turn}</span></div>
+    <div class="act-detail">${activityDetail(e)}</div>`;
+  body.prepend(card);
+  while (body.children.length > MAX_ACTIVITY_DOM) body.removeChild(body.lastChild);
+  document.getElementById("activitycount").textContent = body.querySelectorAll(".act-card").length;
+}
+
+function addMoveLine(entry) {
+  const body = document.getElementById("movebody");
+  const line = document.createElement("div");
+  const applied = entry.response && entry.response.type === "MOVE_APPLIED";
+  line.className = "move-line " + (applied ? "applied" : "rejected");
+  const c = entry.choice;
+  const desc = c ? (c.is_discard ? `discard ${c.card}` : `${c.action} ${c.card} @ (${c.target_row},${c.target_col})`) : "no move";
+  const who = entry.mover === "bot" ? " (bot)" : "";
+  line.innerHTML = `<b>#${entry.turn}${who}</b> ${desc} → ${applied ? "applied" : (entry.response ? entry.response.type : "?")}${entry.response && entry.response.reason ? " (" + entry.response.reason + ")" : ""}`;
+  body.appendChild(line);
+  body.scrollTop = body.scrollHeight;
+}
+
+function setStatus(status, winner) {
+  const badge = document.getElementById("phasebadge");
+  badge.textContent = winner ? `finished — ${winner} wins` : status;
+  badge.className = "status-badge" + (status === "finished" ? " finished" : status === "playing" ? " playing" : "");
+}
+
+function applyState(state) {
+  (state.sequence_history || []).forEach((e) => recordSequenceCells(e.team, e.cells));
+  renderBoard(state.board, state.chips);
+  renderHand(state.hand);
+  document.getElementById("turnnum").textContent = state.turn || 0;
+  renderProbes(state.probes || []);
+  renderPlayers(state.players);
+  renderSequenceTally(state.sequences);
+  (state.activity || []).slice(-MAX_ACTIVITY_DOM).forEach(addActivity);
+  (state.moves || []).forEach(addMoveLine);
+  setStatus(state.status, state.winner);
+}
+
+function connect() {
+  const ws = new WebSocket(WS_URL);
+  const dot = document.getElementById("dot");
+  const label = document.getElementById("dotlabel");
+
+  ws.onopen = () => { dot.className = "dot live"; label.textContent = "live"; };
+  ws.onclose = () => {
+    dot.className = "dot down"; label.textContent = "reconnecting…";
+    setTimeout(connect, 1500);
+  };
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "snapshot") {
+      applyState(msg.state);
+    } else if (msg.type === "probes") {
+      renderProbes(msg.results);
+    } else if (msg.type === "move") {
+      document.getElementById("turnnum").textContent = msg.turn;
+      renderBoard(msg.board, msg.chips);
+      renderHand(msg.hand);
+      renderSequenceTally(msg.sequences);
+      flashLastMove(msg.choice);
+      addMoveLine({ turn: msg.turn, choice: msg.choice, response: msg.response, mover: msg.mover });
+    } else if (msg.type === "activity") {
+      addActivity(msg.entry);
+    } else if (msg.type === "players") {
+      renderPlayers(msg.info);
+    } else if (msg.type === "sequence_formed") {
+      renderSequenceTally({ counts: msg.entry.counts, needed: msg.entry.needed });
+      recordSequenceCells(msg.entry.team, msg.entry.cells || []);
+      applyPersistentSequenceHighlights();
+      flashSequenceCells(msg.entry.cells || []);
+      showSequenceToast(msg.entry);
+    } else if (msg.type === "status") {
+      setStatus(msg.status, msg.winner);
+    }
+  };
+}
+connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-ollama>=0.2.0
+websockets>=12.0
+chromadb>=0.5.0
+pydantic>=2.0
+
+# Observability demo (Phoenix trace UI at localhost:6006). main.py still
+# runs fine without these installed - it just skips tracing.
+arize-phoenix
+openinference-instrumentation-langchain

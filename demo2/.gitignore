@@ -1,0 +1,11 @@
+node_modules/
+.chroma/
+__pycache__/
+*.pyc
+.venv/
+.env
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
